@@ -861,7 +861,7 @@ class StartScreen(tk.Frame):
         self._line(MENU_X, 992, PANEL_R, 992, "#1C1C21")
         self._t(0, 1014, "© Cecilienne--电力公司1.0.0V", 15, "#6A6A72",
                 F_LAT, 2.0, right=PANEL_R)
-        
+
     def _draw_quit(self) -> None:
         """页脚左侧的退出按钮：点它 = 按 ESC，走同一套确认。"""
         hov = (self.hover == "quit")

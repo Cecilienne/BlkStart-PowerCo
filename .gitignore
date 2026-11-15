@@ -18,6 +18,7 @@ assets/
 Thumbs.db
 desktop.ini
 .DS_Store
+
 # ---- 其他 ----
 *.tmp
 
