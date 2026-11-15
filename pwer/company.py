@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from .constants import (
+    DAYS_PER_QUARTER,
     INFRA_SPECS,
     MINE_FIXED,
     PLANT_SPECS,
@@ -31,12 +32,13 @@ class Plant:
     owner: int
     cap: float
     capex: float
+    city: int = 0
     build_turn: int = 0
     book_value: float = 0.0
     life_q: float = 60.0
     # 运行时状态
     online: bool = True
-    outage_turns: int = 0
+    outage_days: int = 0
     cf_actual: float = 0.0
     available_mwh: float = 0.0
     dispatched_mwh: float = 0.0
@@ -74,6 +76,7 @@ class Mine:
     reserve: float
     output: float
     cost_per_t: float
+    city: int = 0
     build_turn: int = 0
     life_q: float = 80.0
     produced_last: float = 0.0
@@ -111,6 +114,7 @@ class Project:
     teams: int = 1
     progress: float = 0.0
     stalled_turns: int = 0
+    city: int = 0
 
     @property
     def name(self) -> str:
@@ -123,6 +127,18 @@ class Project:
     @property
     def per_turn(self) -> float:
         return self.capex / max(1, self.turns_total)
+
+    @property
+    def days_total(self) -> int:
+        return max(1, self.turns_total * DAYS_PER_QUARTER)
+
+    @property
+    def days_left(self) -> int:
+        return max(0, self.days_total - int(self.progress * self.days_total))
+
+    @property
+    def progress_pct(self) -> float:
+        return max(0.0, min(1.0, self.progress))
 
 
 @dataclass
@@ -191,6 +207,7 @@ class IncomeStatement:
 class Company:
     idx: int
     name: str
+    account_name: str = ""      # 玩家账户名（AI 公司为空；创建页写入）
     is_player: bool = False
     cash: float = 0.0
     debt: float = 0.0
@@ -228,8 +245,9 @@ class Company:
     market_share: float = 0.0
     risk_flags: list[str] = field(default_factory=list)
     ai_alerted: bool = False
-    banned_acq_turns: int = 0
+    banned_acq_days: int = 0
     city_served: dict[int, tuple[float, float, float]] = field(default_factory=dict)
+    home_city: int = -1           # AI 公司的离屏城市；玩家为 -1
 
     # ------------------------------------------------------------ 行情（K 线）
     def note_price(self, p: float | None = None) -> None:
@@ -272,6 +290,8 @@ class Company:
         """旧存档兼容：补齐后来才加的行情字段，避免读档后 AttributeError。"""
         self.__dict__.update(state)
         self.__dict__.setdefault("candles", [])
+        self.__dict__.setdefault("account_name", "")
+        self.__dict__.setdefault("home_city", -1)
         if getattr(self, "turn_open", 0.0) <= 0:
             self.turn_open = self.price
         if getattr(self, "turn_high", 0.0) <= 0:

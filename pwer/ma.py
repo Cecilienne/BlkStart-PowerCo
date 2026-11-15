@@ -94,6 +94,10 @@ def buy_shares(game, holder, target: Company, qty: float) -> float:
     """holder 以市价买入 target 的股票，返回花费（万元）。"""
     if target.delisted:
         raise MaError("该公司已退市，无法交易")
+    if holder in (game.player_idx, CEO) and target.idx != game.player_idx:
+        ban = game.player.banned_acq_days
+        if ban > 0:
+            raise MaError(f"反垄断禁令：{ban} 天内不得收购其他公司股票")
     if holder == target.idx:
         raise MaError("回购自家股票请使用【回购】操作")
     qty = min(qty, target.shares * 0.95)
@@ -235,9 +239,11 @@ def retire_plant(game, co: Company, plant_id: int, by_player: bool = False) -> N
     if plant is None:
         raise MaError("机组不存在")
     co.plants.remove(plant)
-    tile = game.world.tile(plant.x, plant.y)
-    if tile.owner == co.idx and tile.ref == plant.id:
-        tile.owner, tile.kind, tile.ref = -1, "", -1
+    w = game.world_for_city(plant.city) if plant.x >= 0 else None
+    if w is not None:
+        tile = w.tile(plant.x, plant.y)
+        if tile.owner == co.idx and tile.ref == plant.id:
+            tile.owner, tile.kind, tile.ref = -1, "", -1
     loss = plant.book_value
     co.cash = max(0.0, co.cash - 300.0)   # 拆除费用
     co.reputation = max(0.0, co.reputation - (2.0 if by_player else 1.0))
@@ -261,20 +267,34 @@ def absorb_merge(game, target: Company) -> None:
     for p in target.plants:
         p.owner = me.idx
         me.plants.append(p)
-        t = game.world.tile(p.x, p.y)
-        t.owner = me.idx
-        t.ref = p.id
+        if p.x >= 0:
+            w = game.world_for_city(p.city)
+            if w is not None:
+                t = w.tile(p.x, p.y)
+                t.owner = me.idx
+                t.ref = p.id
     for m in target.mines:
         m.owner = me.idx
         me.mines.append(m)
-        t = game.world.tile(m.x, m.y)
-        t.owner = me.idx
-        t.ref = m.id
+        if m.x >= 0:
+            w = game.world_for_city(m.city)
+            if w is not None:
+                t = w.tile(m.x, m.y)
+                t.owner = me.idx
+                t.ref = m.id
     for pr in target.projects:
         pr.owner = me.idx
         me.projects.append(pr)
-        t = game.world.tile(pr.x, pr.y)
-        t.owner = me.idx
+        if pr.x >= 0:
+            w = game.world_for_city(pr.city)
+            if w is not None:
+                t = w.tile(pr.x, pr.y)
+                t.owner = me.idx
+    if target.home_city >= 0:
+        c = game.city_state(target.home_city)
+        if c is not None:
+            c.owner = me.idx
+            c.unlocked = True
 
     me.cash += target.cash
     me.debt += target.debt
